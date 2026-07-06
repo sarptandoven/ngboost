@@ -9,7 +9,14 @@ import pytest
 import sklearn.tree._tree as _sklearn_tree  # pylint: disable=c-extension-no-member
 from sklearn.tree import DecisionTreeRegressor
 
-from ngboost import NGBClassifier, NGBRegressor, NGBSurvival, load_ngboost_model
+from ngboost import (
+    NGBClassifier,
+    NGBRegressor,
+    NGBSurvival,
+    load_ngboost_model,
+    load_ngboost_model_json,
+    save_ngboost_model_json,
+)
 from ngboost.distns import MultivariateNormal
 
 
@@ -57,6 +64,25 @@ def test_model_save(learners_data):
         model = pickle.loads(serial)
         new_preds = model.predict(data)
         assert (new_preds == preds).all()
+
+
+def test_json_inference_roundtrip_preserves_predictions(learners_data):
+    """JSON export stores enough fitted state for inference without pickle."""
+
+    for learner, data, preds in learners_data[:2]:  # regressor and classifier paths
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp_path = f.name
+        try:
+            save_ngboost_model_json(learner, tmp_path)
+            model = load_ngboost_model_json(tmp_path)
+            new_preds = model.predict(data)
+            assert np.allclose(new_preds, preds)
+            if isinstance(learner, NGBClassifier):
+                assert np.allclose(
+                    model.predict_proba(data), learner.predict_proba(data)
+                )
+        finally:
+            os.unlink(tmp_path)
 
 
 # ---------------------------------------------------------------------------
