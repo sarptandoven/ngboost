@@ -55,8 +55,8 @@ test_NLL = -Y_dists.logpdf(Y_test).mean()
 print('Test NLL', test_NLL)
 ```
 
-Fitted NGBoost models with tree base learners can also be exported to JSON for
-portable inference without pickle:
+Fitted NGBoost models with `DecisionTreeRegressor` base learners can also be
+exported to JSON for portable inference without pickle:
 
 ```python
 from ngboost import load_ngboost_model_json, save_ngboost_model_json

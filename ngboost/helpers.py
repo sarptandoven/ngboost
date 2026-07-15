@@ -7,6 +7,7 @@ import types as _types
 import joblib
 import numpy as np
 import sklearn.tree._tree as _sklearn_tree  # pylint: disable=c-extension-no-member
+from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.utils import check_array
 
@@ -130,6 +131,24 @@ def _qualified_name(obj):
     return f"{obj.__module__}.{obj.__qualname__}"
 
 
+def _ensure_importable_class(obj, description):
+    name = _qualified_name(obj)
+    if "<locals>" in name:
+        raise TypeError(
+            "JSON inference serialization does not currently support "
+            f"dynamic {description} classes: {name}."
+        )
+    try:
+        if _import_qualified_name(name) is not obj:
+            raise TypeError
+    except (AttributeError, ImportError, TypeError, ValueError) as exc:
+        raise TypeError(
+            "JSON inference serialization requires importable "
+            f"{description} classes, got {name}."
+        ) from exc
+    return name
+
+
 def _import_qualified_name(name):
     module_name, _, attr_name = name.rpartition(".")
     if not module_name:
@@ -144,7 +163,7 @@ def _import_qualified_name(name):
 def _encode_distribution(dist):
     if getattr(dist, "__name__", None) == "Categorical":
         return {"kind": "categorical", "K": dist.n_params + 1}
-    return {"kind": "qualified", "name": _qualified_name(dist)}
+    return {"kind": "qualified", "name": _ensure_importable_class(dist, "distribution")}
 
 
 def _decode_distribution(payload):
@@ -342,6 +361,7 @@ def save_ngboost_model_json(model, filepath):
             "scalings": _encode_json_value(model.scalings),
             "col_idxs": _encode_json_value(model.col_idxs),
             "evals_result": _encode_json_value(getattr(model, "evals_result", {})),
+            "classes": _encode_json_value(getattr(model, "classes_", None)),
             "base_models": [
                 [_serialize_decision_tree(estimator) for estimator in iter_models]
                 for iter_models in model.base_models
@@ -381,6 +401,11 @@ def load_ngboost_model_json(filepath):
     model.scalings = _decode_json_value(state["scalings"])
     model.col_idxs = _decode_json_value(state["col_idxs"])
     model.evals_result = _decode_json_value(state["evals_result"])
+    classes = _decode_json_value(state.get("classes"))
+    if classes is not None:
+        model.classes_ = classes
+        model._le = LabelEncoder()  # pylint: disable=protected-access
+        model._le.classes_ = classes  # pylint: disable=protected-access
     model.base_models = [
         [_deserialize_decision_tree(estimator) for estimator in iter_models]
         for iter_models in state["base_models"]

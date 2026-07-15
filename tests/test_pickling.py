@@ -85,6 +85,38 @@ def test_json_inference_roundtrip_preserves_predictions(learners_data):
             os.unlink(tmp_path)
 
 
+def test_json_inference_roundtrip_preserves_classifier_classes(breast_cancer_data):
+    """Classifier metadata is kept when available on the fitted model."""
+
+    X_train, _, Y_train, _ = breast_cancer_data
+    ngb = NGBClassifier(verbose=False, n_estimators=2)
+    ngb.fit(X_train, Y_train)
+    ngb.classes_ = np.array(["benign", "malignant"])
+
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        tmp_path = f.name
+    try:
+        save_ngboost_model_json(ngb, tmp_path)
+        model = load_ngboost_model_json(tmp_path)
+        assert np.array_equal(model.classes_, ngb.classes_)
+        assert np.array_equal(model._le.classes_, ngb.classes_)  # pylint: disable=protected-access
+    finally:
+        os.unlink(tmp_path)
+
+
+def test_json_inference_rejects_unimportable_dynamic_distributions(learners_data):
+    """Do not write JSON files that the loader cannot reconstruct."""
+
+    for learner, _, _ in learners_data[2:]:  # survival and MultivariateNormal factories
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp_path = f.name
+        try:
+            with pytest.raises(TypeError, match="dynamic distribution classes"):
+                save_ngboost_model_json(learner, tmp_path)
+        finally:
+            os.unlink(tmp_path)
+
+
 # ---------------------------------------------------------------------------
 # Helpers for backward-compatibility test (issue #389)
 # ---------------------------------------------------------------------------
