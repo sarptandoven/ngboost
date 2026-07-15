@@ -1,6 +1,7 @@
 "The NGBoost library API"
 
 # pylint: disable=too-many-arguments
+import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import check_array
@@ -205,8 +206,26 @@ class NGBClassifier(ClassifierMixin, NGBoost, BaseEstimator):
         )
         self._estimator_type = "classifier"
 
+    def _fit_label_encoder(self, Y):
+        self._le = LabelEncoder().fit(Y)
+        self.classes_ = self._le.classes_
+        n_classes = self.Dist.n_params + 1
+        if len(self.classes_) != n_classes:
+            raise ValueError(
+                "NGBClassifier Dist expects "
+                f"{n_classes} classes, got {len(self.classes_)}."
+            )
+
     def _encode_labels(self, Y):
         return self._le.transform(Y)
+
+    def __setstate__(self, state_dict):
+        super().__setstate__(state_dict)
+        if not hasattr(self, "classes_"):
+            self.classes_ = np.arange(self.Dist.n_params + 1)
+        if not hasattr(self, "_le"):
+            self._le = LabelEncoder()
+            self._le.classes_ = self.classes_
 
     # pylint: disable=too-many-positional-arguments,attribute-defined-outside-init
     def fit(
@@ -221,8 +240,7 @@ class NGBClassifier(ClassifierMixin, NGBoost, BaseEstimator):
         val_loss_monitor=None,
         early_stopping_rounds=None,
     ):
-        self._le = LabelEncoder().fit(Y)
-        self.classes_ = self._le.classes_
+        self._fit_label_encoder(Y)
         Y = self._encode_labels(Y)
         if Y_val is not None:
             Y_val = self._le.transform(Y_val)
@@ -256,8 +274,7 @@ class NGBClassifier(ClassifierMixin, NGBoost, BaseEstimator):
         early_stopping_rounds=None,
     ):
         if not hasattr(self, "classes_"):
-            self._le = LabelEncoder().fit(Y)
-            self.classes_ = self._le.classes_
+            self._fit_label_encoder(Y)
         Y = self._encode_labels(Y)
         if Y_val is not None:
             Y_val = self._le.transform(Y_val)

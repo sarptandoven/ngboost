@@ -62,6 +62,14 @@ def test_classifier_sets_sklearn_classes_and_encodes_labels(breast_cancer_data):
     assert display.roc_auc >= 0.5
 
 
+def test_classifier_rejects_label_count_mismatch(breast_cancer_data):
+    x_train, _, y_train, _ = breast_cancer_data
+    ngb = NGBClassifier(Dist=k_categorical(3), n_estimators=2, verbose=False)
+
+    with pytest.raises(ValueError, match="expects 3 classes, got 2"):
+        ngb.fit(x_train, y_train)
+
+
 # TODO: This is non-deterministic in the model fitting
 def test_classification(breast_cancer_data):
     from sklearn.metrics import (  # pylint: disable=import-outside-toplevel
