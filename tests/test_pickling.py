@@ -99,7 +99,8 @@ def test_json_inference_roundtrip_preserves_classifier_classes(breast_cancer_dat
         save_ngboost_model_json(ngb, tmp_path)
         model = load_ngboost_model_json(tmp_path)
         assert np.array_equal(model.classes_, ngb.classes_)
-        assert np.array_equal(model._le.classes_, ngb.classes_)  # pylint: disable=protected-access
+        label_classes = model._le.classes_  # pylint: disable=protected-access
+        assert np.array_equal(label_classes, ngb.classes_)
     finally:
         os.unlink(tmp_path)
 
@@ -153,8 +154,8 @@ def _make_old_style_pickle_bytes(model):
 
     buf = io.BytesIO()
     p = pickle.Pickler(buf)
-    p.dispatch_table = {  # pylint: disable=c-extension-no-member
-        _sklearn_tree.Tree: _old_tree_reducer
+    p.dispatch_table = {
+        _sklearn_tree.Tree: _old_tree_reducer  # pylint: disable=c-extension-no-member
     }
     p.dump(model)
     return buf.getvalue()
@@ -210,8 +211,9 @@ def test_backward_compat_load(learners_data):
             assert (new_preds == preds).all()
             for iter_models in model.base_models:
                 for estimator in iter_models:
-                    assert isinstance(  # pylint: disable=c-extension-no-member
-                        estimator.tree_, _sklearn_tree.Tree
-                    )
+                    tree_type = (
+                        _sklearn_tree.Tree
+                    )  # pylint: disable=c-extension-no-member
+                    assert isinstance(estimator.tree_, tree_type)
         finally:
             os.unlink(tmp_path)
